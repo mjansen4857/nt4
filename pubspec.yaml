@@ -1,7 +1,7 @@
 name: nt4
-description: A starting point for Dart libraries or applications.
+description: Dart implementation of the WPILib NT4 protocol
 version: 1.0.0
-# repository: https://github.com/my_org/my_repo
+repository: https://github.com/mjansen4857/nt4
 
 environment:
   sdk: ^3.0.6
@@ -13,9 +13,10 @@ platforms:
   macos:
   windows:
 
-# Add regular dependencies here.
 dependencies:
-  # path: ^1.8.0
+  messagepack: ^0.2.1
+  msgpack_dart: ^1.0.1
+  web_socket_channel: ^2.4.0
 
 dev_dependencies:
   lints: ^2.0.0

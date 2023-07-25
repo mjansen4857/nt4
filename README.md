@@ -1,39 +1,31 @@
-<!-- 
-This README describes the package. If you publish this package to pub.dev,
-this README's contents appear on the landing page for your package.
-
-For information about how to write a good package README, see the guide for
-[writing package pages](https://dart.dev/guides/libraries/writing-package-pages). 
-
-For general information about developing packages, see the Dart guide for
-[creating packages](https://dart.dev/guides/libraries/create-library-packages)
-and the Flutter guide for
-[developing packages and plugins](https://flutter.dev/developing-packages). 
--->
-
-TODO: Put a short description of the package here that helps potential users
-know whether this package might be useful for them.
-
-## Features
-
-TODO: List what your package can do. Maybe include images, gifs, or videos.
-
-## Getting started
-
-TODO: List prerequisites and provide or point to information on how to
-start using the package.
+Dart implementation of the WPILib NT4 protocol
 
 ## Usage
 
-TODO: Include short and useful examples for package users. Add longer examples
-to `/example` folder. 
-
 ```dart
-const like = 'sample';
+// Connect to NT4 server at 10.30.15.2
+NT4Client client = NT4Client(
+serverBaseAddress: '10.30.15.2',
+onConnect: () {
+    print('NT4 Client Connected');
+},
+onDisconnect: () {
+    print('NT4 Client Disconnected');
+},
+);
+
+// Publish a topic and send data
+NT4Topic examplePub =
+    client.publishNewTopic('/SmartDashboard/CoolNumber', NT4TypeStr.typeInt);
+client.addSample(examplePub, 123456);
+
+// Subscribe to a topic
+NT4Subscription exampleSub = client.subscribe('/SmartDashboard/Example');
+
+// Recieve data from subscription with a callback or stream
+exampleSub.listen((data) => print('Recieved data from callback: $data'));
+
+await for (Object? data in exampleSub.stream()) {
+print('Recieved data from stream: $data');
+}
 ```
-
-## Additional information
-
-TODO: Tell users more about the package: where to find more information, how to 
-contribute to the package, how to file issues, what response they can expect 
-from the package authors, and more.
