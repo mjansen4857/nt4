@@ -26,6 +26,13 @@ class NT4Client {
 
   WebSocketChannel? _ws;
 
+  /// Create an NT4 client. This will connect to an NT4 server running at
+  /// [serverBaseAddress]. This should be either 'localhost' if running a
+  /// simulator, or 10.TE.AM.2 if running on a robot.
+  /// Example: '10.30.15.2'
+  ///
+  /// [onConnect] and [onDisconnect] are callbacks that will be called when
+  /// the connection status changes
   NT4Client({
     required this.serverBaseAddress,
     this.onConnect,
@@ -39,11 +46,34 @@ class NT4Client {
     _wsConnect();
   }
 
+  /// Close the connection to the server and cleanup
   void close() {
     _timeSyncBgEvent.cancel();
     _ws?.sink.close();
   }
 
+  /// Create a stream that represents the status of the connection
+  /// to the NT4 server
+  Stream<bool> connectionStatusStream() async* {
+    yield _serverConnectionActive;
+    bool lastYielded = _serverConnectionActive;
+
+    while (true) {
+      await Future.delayed(const Duration(seconds: 1));
+      if (_serverConnectionActive != lastYielded) {
+        yield _serverConnectionActive;
+        lastYielded = _serverConnectionActive;
+      }
+    }
+  }
+
+  /// Subscribe to a topic with the name [topic] and a period of [period]
+  ///
+  /// [topic] should be the full path to the topic you wish to subscribe to
+  /// Example: '/SmartDashboard/SomeTopic'
+  ///
+  /// [period] represents how often the server should send updated data
+  /// for this topic, in seconds
   NT4Subscription subscribe(String topic, [double period = 0.1]) {
     NT4Subscription newSub = NT4Subscription(
       topic: topic,
@@ -56,6 +86,12 @@ class NT4Client {
     return newSub;
   }
 
+  /// Subscribe to all samples for a given topic with the name [topic].
+  /// This will receive all data published to this topic instead of being
+  /// limited to a given rate.
+  ///
+  /// [topic] should be the full path to the topic you wish to subscribe to
+  /// Example: '/SmartDashboard/SomeTopic'
   NT4Subscription subscribeAllSamples(String topic) {
     NT4Subscription newSub = NT4Subscription(
       topic: topic,
@@ -68,40 +104,71 @@ class NT4Client {
     return newSub;
   }
 
+  /// Unsubscribe from the given subscription, [sub]
+  /// The client will stop receiving any data for this subscription
   void unSubscribe(NT4Subscription sub) {
     _subscriptions.remove(sub.uid);
     _wsUnsubscribe(sub);
   }
 
+  /// Clear all subscriptions for the client. This will unsubscribe from
+  /// all previously subscribed to topics
   void clearAllSubscriptions() {
     for (NT4Subscription sub in _subscriptions.values) {
       unSubscribe(sub);
     }
   }
 
+  /// Set the properties of a [topic]
+  ///
+  /// If [isPersistent] is true, any data published to this topic will
+  /// be saved to the local storage of the server, persisting when the server
+  /// restarts.
+  ///
+  /// If [isRetained] is true, any data published to this topic will be
+  /// retained by the server whenever the publisher (this client) disconnects.
+  /// If this is false, the topic will be removed from the server when the
+  /// client disconnects.
   void setProperties(NT4Topic topic, bool isPersistent, bool isRetained) {
     topic.properties['persistent'] = isPersistent;
     topic.properties['retained'] = isRetained;
     _wsSetProperties(topic);
   }
 
+  /// Create and publish a new topic with a given [name] and [type]
+  ///
+  /// [name] should be the full path to the topic you wish to subscribe to
+  /// Example: '/SmartDashboard/SomeTopic'
+  ///
+  /// Use [NT4TypeStr] to supply the type
   NT4Topic publishNewTopic(String name, String type) {
     NT4Topic newTopic = NT4Topic(name: name, type: type, properties: {});
     publishTopic(newTopic);
     return newTopic;
   }
 
+  /// Publish a given [topic]
   void publishTopic(NT4Topic topic) {
     topic.pubUID = getNewPubUID();
     _clientPublishedTopics[topic.name] = topic;
     _wsPublish(topic);
   }
 
+  /// Unpublish a given [topic]
+  ///
+  /// The client will no longer be able to send any data for this topic\
+  /// to the server unless it is published again.
   void unpublishTopic(NT4Topic topic) {
     _clientPublishedTopics.remove(topic.name);
     _wsUnpublish(topic);
   }
 
+  /// Add a sample of data for a given [topic]
+  ///
+  /// The [data] supplied should match the type of the topic when it
+  /// was published.
+  ///
+  /// [timestamp] should not be specified
   void addSample(NT4Topic topic, dynamic data, [int? timestamp]) {
     timestamp ??= _getServerTimeUS();
 
@@ -109,6 +176,14 @@ class NT4Client {
         serialize([topic.pubUID, timestamp, topic.getTypeId(), data]));
   }
 
+  /// Add a sample of data for a topic with a given name, [topic]
+  /// If the topic with the supplied name is not published, no data will
+  /// be sent.
+  ///
+  /// The [data] supplied should match the type of the topic when it
+  /// was published.
+  ///
+  /// [timestamp] should not be specified
   void addSampleFromName(String topic, dynamic data, [int? timestamp]) {
     for (NT4Topic t in _announcedTopics.values) {
       if (t.name == topic) {
