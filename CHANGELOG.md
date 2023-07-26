@@ -1,3 +1,8 @@
+## 1.1.1
+
+- Potentially fix crash when client fails to connect
+- Remove prints to console
+
 ## 1.1.0
 
 - Add method to create a connection status stream
