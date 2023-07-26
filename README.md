@@ -5,13 +5,13 @@ Dart implementation of the WPILib NT4 protocol
 ```dart
 // Connect to NT4 server at 10.30.15.2
 NT4Client client = NT4Client(
-serverBaseAddress: '10.30.15.2',
-onConnect: () {
+  serverBaseAddress: '10.30.15.2',
+  onConnect: () {
     print('NT4 Client Connected');
-},
-onDisconnect: () {
+  },
+  onDisconnect: () {
     print('NT4 Client Disconnected');
-},
+  },
 );
 
 // Publish a topic and send data
@@ -26,6 +26,6 @@ NT4Subscription exampleSub = client.subscribe('/SmartDashboard/Example');
 exampleSub.listen((data) => print('Recieved data from callback: $data'));
 
 await for (Object? data in exampleSub.stream()) {
-    print('Recieved data from stream: $data');
+  print('Recieved data from stream: $data');
 }
 ```
