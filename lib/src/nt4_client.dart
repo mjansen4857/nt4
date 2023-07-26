@@ -7,7 +7,7 @@ import 'package:msgpack_dart/msgpack_dart.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class NT4Client {
-  final String serverBaseAddress;
+  String serverBaseAddress;
   final void Function()? onConnect;
   final void Function()? onDisconnect;
 
@@ -21,7 +21,6 @@ class NT4Client {
   // ignore: unused_field
   late Timer _timeSyncBgEvent;
   int _clientId = 0;
-  String _serverAddr = '';
   bool _serverConnectionActive = false;
   int _serverTimeOffsetUS = 0;
 
@@ -45,6 +44,15 @@ class NT4Client {
     });
 
     _wsConnect();
+  }
+
+  /// Change the host address of the NT4 server
+  ///
+  /// This will attempt to close the current connection, then connect with
+  /// the new address
+  void setServerBaseAddress(String serverBaseAddress) {
+    this.serverBaseAddress = serverBaseAddress;
+    _wsOnClose();
   }
 
   /// Create a stream that represents the status of the connection
@@ -251,12 +259,9 @@ class NT4Client {
   void _wsConnect() async {
     _clientId = Random().nextInt(99999999);
 
-    int port = 5810;
-    String prefix = 'ws://';
+    String serverAddr = 'ws://$serverBaseAddress:5810/nt/DartClient_$_clientId';
 
-    _serverAddr = '$prefix$serverBaseAddress:$port/nt/DartClient_$_clientId';
-
-    _ws = WebSocketChannel.connect(Uri.parse(_serverAddr),
+    _ws = WebSocketChannel.connect(Uri.parse(serverAddr),
         protocols: ['networktables.first.wpi.edu']);
 
     try {
