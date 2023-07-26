@@ -1,3 +1,5 @@
+[![CI](https://github.com/mjansen4857/nt4/actions/workflows/ci.yaml/badge.svg)](https://github.com/mjansen4857/nt4/actions/workflows/ci.yaml)
+
 Dart implementation of the WPILib NT4 protocol
 
 ## Usage
