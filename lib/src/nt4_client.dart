@@ -18,6 +18,7 @@ class NT4Client {
   int _publishUIDCounter = 0;
   final Map<String, NT4Topic> _clientPublishedTopics = {};
   final Map<int, NT4Topic> _announcedTopics = {};
+  // ignore: unused_field
   late Timer _timeSyncBgEvent;
   int _clientId = 0;
   String _serverAddr = '';
@@ -44,12 +45,6 @@ class NT4Client {
     });
 
     _wsConnect();
-  }
-
-  /// Close the connection to the server and cleanup
-  void close() {
-    _timeSyncBgEvent.cancel();
-    _ws?.sink.close();
   }
 
   /// Create a stream that represents the status of the connection
@@ -184,14 +179,16 @@ class NT4Client {
   /// was published.
   ///
   /// [timestamp] should not be specified
-  void addSampleFromName(String topic, dynamic data, [int? timestamp]) {
+  ///
+  /// Returns true if the topic was found and data was sent
+  bool addSampleFromName(String topic, dynamic data, [int? timestamp]) {
     for (NT4Topic t in _announcedTopics.values) {
       if (t.name == topic) {
         addSample(t, data, timestamp);
-        return;
+        return true;
       }
     }
-    print('[NT4] Topic not found: $topic');
+    return false;
   }
 
   int _getClientTimeUS() {
@@ -251,7 +248,7 @@ class NT4Client {
     _ws?.sink.add(data);
   }
 
-  void _wsConnect() {
+  void _wsConnect() async {
     _clientId = Random().nextInt(99999999);
 
     int port = 5810;
@@ -262,6 +259,14 @@ class NT4Client {
     _ws = WebSocketChannel.connect(Uri.parse(_serverAddr),
         protocols: ['networktables.first.wpi.edu']);
 
+    try {
+      await _ws!.ready;
+    } catch (e) {
+      // Failed to connect... try again
+      Future.delayed(const Duration(seconds: 1), _wsConnect);
+      return;
+    }
+
     _ws!.stream.listen(
       (data) {
         if (!_serverConnectionActive) {
@@ -271,9 +276,7 @@ class NT4Client {
         _wsOnMessage(data);
       },
       onDone: _wsOnClose,
-      onError: (err) {
-        print('NT4 ERR: $err');
-      },
+      onError: (err) {},
     );
 
     NT4Topic timeTopic = NT4Topic(
@@ -304,7 +307,6 @@ class NT4Client {
 
     _announcedTopics.clear();
 
-    print('[NT4] Connection closed. Attempting to reconnect in 1s');
     Future.delayed(const Duration(seconds: 1), _wsConnect);
   }
 
@@ -312,13 +314,8 @@ class NT4Client {
     if (data is String) {
       var rxArr = jsonDecode(data.toString());
 
-      if (rxArr is! List) {
-        print('[NT4] Ignoring text message, not an array');
-      }
-
       for (var msg in rxArr) {
         if (msg is! Map) {
-          print('[NT4] Ignoring text message, not a json object');
           continue;
         }
 
@@ -326,12 +323,10 @@ class NT4Client {
         var params = msg['params'];
 
         if (method == null || method is! String) {
-          print('[NT4] Ignoring text message, method not string');
           continue;
         }
 
         if (params == null || params is! Map) {
-          print('[NT4] Ignoring text message, params not json object');
           continue;
         }
 
@@ -353,14 +348,11 @@ class NT4Client {
         } else if (method == 'unannounce') {
           NT4Topic? removedTopic = _announcedTopics[params['id']];
           if (removedTopic == null) {
-            print(
-                '[NT4] Ignorining unannounce, topic was not previously announced');
             return;
           }
           _announcedTopics.remove(removedTopic.id);
         } else if (method == 'properties') {
         } else {
-          print('[NT4] Ignoring text message - unknown method $method');
           return;
         }
       }
@@ -386,8 +378,6 @@ class NT4Client {
             }
           } else if (topicID == -1) {
             _wsHandleRecieveTimestamp(timestampUS, value as int);
-          } else {
-            print('[NT4] ignoring binary data, invalid topic ID');
           }
         } catch (err) {
           done = true;

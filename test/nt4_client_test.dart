@@ -3,8 +3,6 @@ import 'package:test/test.dart';
 
 void main() {
   test('test', () {
-    NT4Client test = NT4Client(serverBaseAddress: '10.30.15.2');
-
-    test.close();
+    NT4Client(serverBaseAddress: '10.30.15.2');
   });
 }
