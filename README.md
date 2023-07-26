@@ -26,6 +26,6 @@ NT4Subscription exampleSub = client.subscribe('/SmartDashboard/Example');
 exampleSub.listen((data) => print('Recieved data from callback: $data'));
 
 await for (Object? data in exampleSub.stream()) {
-print('Recieved data from stream: $data');
+    print('Recieved data from stream: $data');
 }
 ```
