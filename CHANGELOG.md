@@ -1,3 +1,7 @@
+## 1.2.0
+
+- Add method to subscribe with custom options
+
 ## 1.1.1
 
 - Potentially fix crash when client fails to connect
