@@ -77,11 +77,22 @@ class NT4Client {
   ///
   /// [period] represents how often the server should send updated data
   /// for this topic, in seconds
-  NT4Subscription subscribe(String topic, [double period = 0.1]) {
+  NT4Subscription subscribePeriodic(String topic, [double period = 0.1]) {
+    return subscribe(
+        topic, NT4SubscriptionOptions(periodicRateSeconds: period));
+  }
+
+  /// Subscribe to a topic with the name [topic] and a period of [period]
+  ///
+  /// [topic] should be the full path to the topic you wish to subscribe to
+  /// Example: '/SmartDashboard/SomeTopic'
+  ///
+  /// [options] The subscription options
+  NT4Subscription subscribe(String topic, NT4SubscriptionOptions options) {
     NT4Subscription newSub = NT4Subscription(
       topic: topic,
       uid: getNewSubUID(),
-      options: NT4SubscriptionOptions(periodicRateSeconds: period),
+      options: options,
     );
 
     _subscriptions[newSub.uid] = newSub;

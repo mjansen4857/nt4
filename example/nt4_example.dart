@@ -18,7 +18,8 @@ void main() async {
   client.addSample(examplePub, 123456);
 
   // Subscribe to a topic
-  NT4Subscription exampleSub = client.subscribe('/SmartDashboard/Example');
+  NT4Subscription exampleSub =
+      client.subscribePeriodic('/SmartDashboard/Example');
 
   // Recieve data from subscription with a callback or stream
   exampleSub.listen((data) => print('Recieved data from callback: $data'));
