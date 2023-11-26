@@ -32,7 +32,7 @@ await for (Object? data in exampleSub.stream()) {
 }
 
 // Temporarily subscribe to a topic to retrieve its data
-double? oneTimeValue = await client.subscribeAndRetrieveData('/SmartDashboard/ConstantValue');
+double? oneTimeValue = await client.subscribeAndRetrieveData<double>('/SmartDashboard/ConstantValue');
 
 if (oneTimeValue != null) {
   print('Receieved one time value from server: $onetimeValue');
