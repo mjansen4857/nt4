@@ -127,6 +127,33 @@ class NT4Client {
     return newSub;
   }
 
+  /// Temporarily creates a subscription to the [topic] and returns the first value the server sends
+  ///
+  /// [topic] should be the full path to the topic you wish to retrieve data from
+  /// Example: '/SmartDashboard/SomeTopic'
+  ///
+  /// [timeout] should be the maximum time the client should spend attempting to retrieve
+  /// data from the topic before returning null, defaults to 2.5 seconds
+  Future<T?> subscribeAndRetrieveData<T>(String topic,
+      {timeout = const Duration(seconds: 2, milliseconds: 500)}) async {
+    NT4Subscription subscription = subscribePeriodic(topic);
+
+    T? value;
+
+    try {
+      value = subscription
+          .stream()
+          .firstWhere((element) => element != null && element is T)
+          .timeout(timeout) as T?;
+    } catch (e) {
+      value = null;
+    }
+
+    unSubscribe(subscription);
+
+    return value;
+  }
+
   /// Unsubscribe from the given subscription, [sub]
   /// The client will stop receiving any data for this subscription
   void unSubscribe(NT4Subscription sub) {
