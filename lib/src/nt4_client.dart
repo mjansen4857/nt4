@@ -18,6 +18,7 @@ class NT4Client {
   int _publishUIDCounter = 0;
   final Map<String, NT4Topic> _clientPublishedTopics = {};
   final Map<int, NT4Topic> _announcedTopics = {};
+  final Map<String, Object?> _lastAnnouncedValues = {};
   // ignore: unused_field
   late Timer _timeSyncBgEvent;
   int _clientId = 0;
@@ -95,6 +96,10 @@ class NT4Client {
       options: options,
     );
 
+    if (_lastAnnouncedValues.containsKey(topic)) {
+      newSub._updateValue(_lastAnnouncedValues[topic]);
+    }
+
     _subscriptions[newSub.uid] = newSub;
     _wsSubscribe(newSub);
     return newSub;
@@ -112,6 +117,10 @@ class NT4Client {
       uid: getNewSubUID(),
       options: const NT4SubscriptionOptions(all: true),
     );
+
+    if (_lastAnnouncedValues.containsKey(topic)) {
+      newSub._updateValue(_lastAnnouncedValues[topic]);
+    }
 
     _subscriptions[newSub.uid] = newSub;
     _wsSubscribe(newSub);
@@ -186,6 +195,8 @@ class NT4Client {
   void addSample(NT4Topic topic, dynamic data, [int? timestamp]) {
     timestamp ??= _getServerTimeUS();
 
+    _lastAnnouncedValues[topic.name] = data;
+
     _wsSendBinary(
         serialize([topic.pubUID, timestamp, topic.getTypeId(), data]));
   }
@@ -208,6 +219,28 @@ class NT4Client {
       }
     }
     return false;
+  }
+
+  /// Returns the last sample of data the client receieved for the given [topic].
+  ///
+  /// This is only the last value that the client has received from the server, so
+  /// if there is no subscription with the same name as the given [topic] name, it will
+  /// return either an old outdated value, or null.
+  Object? getLastAnnouncedValueByTopic(NT4Topic topic) {
+    return getLastAnnouncedValueByName(topic.name);
+  }
+
+  /// Returns the last sample of data the client receieved for the given [topic].
+  ///
+  /// This is only the last value that the client has received from the server, so
+  /// if there is no subscription with the same name as the given [topic], it will
+  /// return either an old outdated value, or null.
+  Object? getLastAnnouncedValueByName(String topic) {
+    if (_lastAnnouncedValues.containsKey(topic)) {
+      return _lastAnnouncedValues[topic];
+    }
+
+    return null;
   }
 
   int _getClientTimeUS() {
@@ -286,6 +319,8 @@ class NT4Client {
     _ws!.stream.listen(
       (data) {
         if (!_serverConnectionActive) {
+          _lastAnnouncedValues.clear();
+
           _serverConnectionActive = true;
           onConnect?.call();
         }
@@ -387,6 +422,7 @@ class NT4Client {
 
           if (topicID >= 0) {
             NT4Topic topic = _announcedTopics[topicID]!;
+            _lastAnnouncedValues[topic.name] = value;
             for (NT4Subscription sub in _subscriptions.values) {
               if (sub.topic == topic.name) {
                 sub._updateValue(value);
