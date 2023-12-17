@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 
+import 'package:collection/collection.dart';
 import 'package:messagepack/messagepack.dart';
 import 'package:msgpack_dart/msgpack_dart.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
@@ -270,6 +271,13 @@ class NT4Client {
     return null;
   }
 
+  /// Get an already announced topic with a given name, [topic]
+  ///
+  /// If there is not an announced topic with the name [topic], `null` will be returned
+  NT4Topic? getTopicFromName(String topic) {
+    return _announcedTopics.values.firstWhereOrNull((e) => e.name == topic);
+  }
+
   int _getClientTimeUS() {
     return DateTime.now().microsecondsSinceEpoch - _startTime;
   }
@@ -430,6 +438,21 @@ class NT4Client {
           }
           _announcedTopics.remove(removedTopic.id);
         } else if (method == 'properties') {
+          String topicName = params['name'];
+          NT4Topic? topic = getTopicFromName(topicName);
+
+          if (topic == null) {
+            return;
+          }
+
+          Map<String, dynamic> update = params['update'];
+          for (MapEntry<String, dynamic> entry in update.entries) {
+            if (entry.value == null) {
+              topic.properties.remove(entry.key);
+            } else {
+              topic.properties[entry.key] = entry.value;
+            }
+          }
         } else {
           return;
         }

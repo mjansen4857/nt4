@@ -35,7 +35,7 @@ await for (Object? data in exampleSub.stream()) {
 double? oneTimeValue = await client.subscribeAndRetrieveData<double>('/SmartDashboard/ConstantValue');
 
 if (oneTimeValue != null) {
-  print('Receieved one time value from server: $onetimeValue');
+  print('Receieved one time value from server: $oneTimeValue');
 } else {
   print('Client receieved no value after 2.5 seconds');
 }
