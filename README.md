@@ -30,4 +30,13 @@ exampleSub.listen((data) => print('Recieved data from callback: $data'));
 await for (Object? data in exampleSub.stream()) {
   print('Recieved data from stream: $data');
 }
+
+// Temporarily subscribe to a topic to retrieve its data
+double? oneTimeValue = await client.subscribeAndRetrieveData<double>('/SmartDashboard/ConstantValue');
+
+if (oneTimeValue != null) {
+  print('Receieved one time value from server: $onetimeValue');
+} else {
+  print('Client receieved no value after 2.5 seconds');
+}
 ```
