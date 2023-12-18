@@ -8,6 +8,12 @@ import 'package:msgpack_dart/msgpack_dart.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class NT4Client {
+  static const int _pingIntervalMsV40 = 1000;
+  static const int _pingIntervalMsV41 = 200;
+
+  static const int _pingTimeoutMsV40 = 5000;
+  static const int _pingTimeoutMsV41 = 1000;
+
   String serverBaseAddress;
   final void Function()? onConnect;
   final void Function()? onDisconnect;
@@ -20,13 +26,23 @@ class NT4Client {
   final Map<String, NT4Topic> _clientPublishedTopics = {};
   final Map<int, NT4Topic> _announcedTopics = {};
   final Map<String, Object?> _lastAnnouncedValues = {};
-  // ignore: unused_field
-  late Timer _timeSyncBgEvent;
   int _clientId = 0;
-  bool _serverConnectionActive = false;
   int _serverTimeOffsetUS = 0;
 
-  WebSocketChannel? _ws;
+  bool _serverConnectionActive = false;
+  bool _rttConnectionActive = false;
+  bool _useRTT = false;
+
+  Timer? _pingTimer;
+  Timer? _pongTimer;
+
+  int _lastReceivedTime = 0;
+
+  int _pingInterval = _pingIntervalMsV40;
+  int _timeoutInterval = _pingTimeoutMsV40;
+
+  WebSocketChannel? _mainWebsocket;
+  WebSocketChannel? _rttWebsocket;
 
   /// Create an NT4 client. This will connect to an NT4 server running at
   /// [serverBaseAddress]. This should be either 'localhost' if running a
@@ -40,11 +56,6 @@ class NT4Client {
     this.onConnect,
     this.onDisconnect,
   }) {
-    _timeSyncBgEvent =
-        Timer.periodic(const Duration(milliseconds: 5000), (timer) {
-      _wsSendTimestamp();
-    });
-
     _wsConnect();
   }
 
@@ -290,7 +301,15 @@ class NT4Client {
     var timeTopic = _announcedTopics[-1];
     if (timeTopic != null) {
       int timeToSend = _getClientTimeUS();
-      addSample(timeTopic, timeToSend, 0);
+
+      var rawData =
+          serialize([timeTopic.pubUID, 0, timeTopic.getTypeId(), timeToSend]);
+
+      if (_useRTT) {
+        _rttWebsocket?.sink.add(rawData);
+      } else {
+        _mainWebsocket?.sink.add(rawData);
+      }
     }
   }
 
@@ -300,6 +319,20 @@ class NT4Client {
     int rtt = rxTime - clientTimestamp;
     int serverTimeAtRx = (serverTimestamp - rtt / 2.0).round();
     _serverTimeOffsetUS = serverTimeAtRx - rxTime;
+
+    _lastReceivedTime = rxTime;
+  }
+
+  void _checkPingStatus(Timer timer) {
+    if (!_serverConnectionActive || _lastReceivedTime == 0) {
+      return;
+    }
+
+    int currentTime = _getClientTimeUS();
+
+    if (currentTime - _lastReceivedTime > _timeoutInterval) {
+      _wsOnClose();
+    }
   }
 
   void _wsSubscribe(NT4Subscription sub) {
@@ -323,7 +356,7 @@ class NT4Client {
   }
 
   void _wsSendJSON(String method, Map<String, dynamic> params) {
-    _ws?.sink.add(jsonEncode([
+    _mainWebsocket?.sink.add(jsonEncode([
       {
         'method': method,
         'params': params,
@@ -332,26 +365,52 @@ class NT4Client {
   }
 
   void _wsSendBinary(dynamic data) {
-    _ws?.sink.add(data);
+    _mainWebsocket?.sink.add(data);
   }
 
   void _wsConnect() async {
+    if (_serverConnectionActive) {
+      return;
+    }
+
     _clientId = Random().nextInt(99999999);
 
     String serverAddr = 'ws://$serverBaseAddress:5810/nt/DartClient_$_clientId';
 
-    _ws = WebSocketChannel.connect(Uri.parse(serverAddr),
-        protocols: ['networktables.first.wpi.edu']);
+    _mainWebsocket =
+        WebSocketChannel.connect(Uri.parse(serverAddr), protocols: [
+      'networktables.first.wpi.edu',
+      'v4.1.networktables.first.wpi.edu',
+    ]);
+
+    // Prevents connecting to the wrong address when changing IP address
+    if (!serverAddr.contains(serverBaseAddress)) {
+      return;
+    }
 
     try {
-      await _ws!.ready;
+      await _mainWebsocket!.ready;
     } catch (e) {
       // Failed to connect... try again
       Future.delayed(const Duration(seconds: 1), _wsConnect);
       return;
     }
 
-    _ws!.stream.listen(
+    _pingTimer?.cancel();
+    _pongTimer?.cancel();
+
+    if (_mainWebsocket!.protocol == 'v4.1.networktables.first.wpi.edu') {
+      _useRTT = true;
+      _pingInterval = _pingIntervalMsV41;
+      _timeoutInterval = _pingTimeoutMsV41;
+      _rttConnect();
+    } else {
+      _useRTT = false;
+      _pingInterval = _pingIntervalMsV40;
+      _timeoutInterval = _pingTimeoutMsV40;
+    }
+
+    _mainWebsocket!.stream.listen(
       (data) {
         if (!_serverConnectionActive) {
           _lastAnnouncedValues.clear();
@@ -373,7 +432,14 @@ class NT4Client {
         properties: {});
     _announcedTopics[timeTopic.id] = timeTopic;
 
+    _lastReceivedTime = 0;
     _wsSendTimestamp();
+
+    _pingTimer = Timer.periodic(Duration(milliseconds: _pingInterval), (timer) {
+      _wsSendTimestamp();
+    });
+    _pongTimer =
+        Timer.periodic(Duration(milliseconds: _pingInterval), _checkPingStatus);
 
     for (NT4Topic topic in _clientPublishedTopics.values) {
       _wsPublish(topic);
@@ -385,9 +451,74 @@ class NT4Client {
     }
   }
 
+  void _rttConnect() async {
+    if (!_useRTT || _rttConnectionActive) {
+      return;
+    }
+
+    String rttServerAddr = 'ws://$serverBaseAddress:5810/nt/elastic';
+    _rttWebsocket = WebSocketChannel.connect(Uri.parse(rttServerAddr),
+        protocols: ['rtt.networktables.first.wpi.edu']);
+
+    try {
+      await _rttWebsocket!.ready;
+    } catch (e) {
+      Future.delayed(const Duration(seconds: 1), _rttConnect);
+      return;
+    }
+
+    // Prevents connecting to the wrong address when changing IP address
+    if (!rttServerAddr.contains(serverBaseAddress)) {
+      return;
+    }
+
+    _rttConnectionActive = true;
+
+    _rttWebsocket!.stream.listen(
+      (data) {
+        if (data is! List<int>) {
+          return;
+        }
+
+        var msg = Unpacker.fromList(data).unpackList();
+
+        int topicID = msg[0] as int;
+        int timestampUS = msg[1] as int;
+        var value = msg[3];
+
+        if (value is! int) {
+          return;
+        }
+
+        if (topicID == -1) {
+          _wsHandleRecieveTimestamp(timestampUS, value);
+        }
+      },
+      onDone: _rttOnClose,
+    );
+  }
+
+  void _rttOnClose() {
+    _rttWebsocket?.sink.close();
+    _rttWebsocket = null;
+
+    _lastReceivedTime = 0;
+    _rttConnectionActive = false;
+    _useRTT = false;
+  }
+
   void _wsOnClose() {
-    _ws = null;
+    _mainWebsocket?.sink.close();
+    _rttWebsocket?.sink.close();
+
+    _mainWebsocket = null;
+    _rttWebsocket = null;
+
     _serverConnectionActive = false;
+    _rttConnectionActive = false;
+    _useRTT = false;
+
+    _lastReceivedTime = 0;
 
     onDisconnect?.call();
 
