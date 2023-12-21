@@ -5,6 +5,7 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:messagepack/messagepack.dart';
 import 'package:msgpack_dart/msgpack_dart.dart';
+import 'package:pair/pair.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class NT4Client {
@@ -26,6 +27,7 @@ class NT4Client {
   final Map<String, NT4Topic> _clientPublishedTopics = {};
   final Map<int, NT4Topic> _announcedTopics = {};
   final Map<String, Object?> _lastAnnouncedValues = {};
+  final Map<String, int> _lastAnnouncedTimestamps = {};
   int _clientId = 0;
   int _serverTimeOffsetUS = 0;
 
@@ -111,6 +113,9 @@ class NT4Client {
     if (_lastAnnouncedValues.containsKey(topic)) {
       newSub._updateValue(_lastAnnouncedValues[topic]);
     }
+    if (_lastAnnouncedTimestamps.containsKey(topic)) {
+      newSub._updateTimestamp(_lastAnnouncedTimestamps[topic]!);
+    }
 
     _subscriptions[newSub.uid] = newSub;
     _wsSubscribe(newSub);
@@ -132,6 +137,9 @@ class NT4Client {
 
     if (_lastAnnouncedValues.containsKey(topic)) {
       newSub._updateValue(_lastAnnouncedValues[topic]);
+    }
+    if (_lastAnnouncedTimestamps.containsKey(topic)) {
+      newSub._updateTimestamp(_lastAnnouncedTimestamps[topic]!);
     }
 
     _subscriptions[newSub.uid] = newSub;
@@ -235,6 +243,7 @@ class NT4Client {
     timestamp ??= _getServerTimeUS();
 
     _lastAnnouncedValues[topic.name] = data;
+    _lastAnnouncedTimestamps[topic.name] = timestamp;
 
     _wsSendBinary(
         serialize([topic.pubUID, timestamp, topic.getTypeId(), data]));
@@ -280,6 +289,24 @@ class NT4Client {
     }
 
     return null;
+  }
+
+  /// Returns the timestamp of the last sample of data the client receieved for the given [topic].
+  ///
+  /// This is only the value of the last timestamp that the client has received from the server, so
+  /// if there is no subscription with the same name as the given [topic], it will
+  /// return either an old timestamp, or null.
+  int? getLastTimestampByTopic(NT4Topic topic) {
+    return getLastTimestampByName(topic.name);
+  }
+
+  /// Returns the timestamp of the last sample of data the client receieved for the given [topic].
+  ///
+  /// This is only the value of the last timestamp that the client has received from the server, so
+  /// if there is no subscription with the same name as the given [topic], it will
+  /// return either an old timestamp, or null.
+  int? getLastTimestampByName(String topic) {
+    return _lastAnnouncedTimestamps[topic];
   }
 
   /// Get an already announced topic with a given name, [topic]
@@ -414,6 +441,7 @@ class NT4Client {
       (data) {
         if (!_serverConnectionActive) {
           _lastAnnouncedValues.clear();
+          _lastAnnouncedTimestamps.clear();
 
           _serverConnectionActive = true;
           onConnect?.call();
@@ -604,6 +632,7 @@ class NT4Client {
           if (topicID >= 0) {
             NT4Topic topic = _announcedTopics[topicID]!;
             _lastAnnouncedValues[topic.name] = value;
+            _lastAnnouncedTimestamps[topic.name] = timestampUS;
             for (NT4Subscription sub in _subscriptions.values) {
               if (sub.topic == topic.name) {
                 sub._updateValue(value);
@@ -701,6 +730,8 @@ class NT4Subscription {
   final int uid;
 
   Object? currentValue;
+  int timestamp = 0;
+
   final List<Function(Object?)> _listeners = [];
 
   NT4Subscription({
@@ -713,16 +744,32 @@ class NT4Subscription {
     _listeners.add(onChanged);
   }
 
-  Stream<Object?> stream() async* {
+  Stream<Object?> stream({bool yieldAll = false}) async* {
     yield currentValue;
     var lastYielded = currentValue;
 
     while (true) {
       await Future.delayed(
           Duration(milliseconds: (options.periodicRateSeconds * 1000).round()));
-      if (currentValue != lastYielded) {
+      if (currentValue != lastYielded || yieldAll) {
         yield currentValue;
         lastYielded = currentValue;
+      }
+    }
+  }
+
+  Stream<Pair<Object?, int>> timestampedStream({bool yieldAll = false}) async* {
+    yield Pair(currentValue, timestamp);
+    var lastYielded = Pair(currentValue, timestamp);
+
+    while (true) {
+      await Future.delayed(
+          Duration(milliseconds: (options.periodicRateSeconds * 1000).round()));
+
+      Pair<Object?, int> current = Pair(currentValue, timestamp);
+      if (current != lastYielded || yieldAll) {
+        yield current;
+        lastYielded = current;
       }
     }
   }
@@ -732,6 +779,10 @@ class NT4Subscription {
     for (var listener in _listeners) {
       listener(currentValue);
     }
+  }
+
+  void _updateTimestamp(int timestamp) {
+    this.timestamp = timestamp;
   }
 
   Map<String, dynamic> _toSubscribeJson() {
