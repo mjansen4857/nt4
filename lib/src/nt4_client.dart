@@ -27,6 +27,7 @@ class NT4Client {
   final Map<int, NT4Topic> _announcedTopics = {};
   final Map<String, Object?> _lastAnnouncedValues = {};
   final Map<String, int> _lastAnnouncedTimestamps = {};
+
   int _clientId = 0;
   int _serverTimeOffsetUS = 0;
 
