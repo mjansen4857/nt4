@@ -5,7 +5,6 @@ import 'dart:math';
 import 'package:collection/collection.dart';
 import 'package:messagepack/messagepack.dart';
 import 'package:msgpack_dart/msgpack_dart.dart';
-import 'package:pair/pair.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class NT4Client {
@@ -758,15 +757,16 @@ class NT4Subscription {
     }
   }
 
-  Stream<Pair<Object?, int>> timestampedStream({bool yieldAll = false}) async* {
-    yield Pair(currentValue, timestamp);
-    var lastYielded = Pair(currentValue, timestamp);
+  Stream<({Object? value, int timestamp})> timestampedStream(
+      {bool yieldAll = false}) async* {
+    yield (value: currentValue, timestamp: timestamp);
+    var lastYielded = (value: currentValue, timestamp: timestamp);
 
     while (true) {
       await Future.delayed(
           Duration(milliseconds: (options.periodicRateSeconds * 1000).round()));
 
-      Pair<Object?, int> current = Pair(currentValue, timestamp);
+      var current = (value: currentValue, timestamp: timestamp);
       if (current != lastYielded || yieldAll) {
         yield current;
         lastYielded = current;
