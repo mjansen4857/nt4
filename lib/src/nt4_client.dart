@@ -534,7 +534,7 @@ class NT4Client {
 
         var msg = Unpacker.fromList(data).unpackList();
 
-        int topicID = msg[0] as int;
+        // rtt socket will only send timestamps, we can ignore the topic ID
         int timestampUS = msg[1] as int;
         var value = msg[3];
 
@@ -542,9 +542,7 @@ class NT4Client {
           return;
         }
 
-        if (topicID == -1) {
-          _wsHandleRecieveTimestamp(timestampUS, value);
-        }
+        _wsHandleRecieveTimestamp(timestampUS, value);
       },
       onDone: _rttOnClose,
       onError: (error) {},
