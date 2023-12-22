@@ -296,7 +296,7 @@ class NT4Client {
   /// This is only the value of the last timestamp that the client has received from the server, so
   /// if there is no subscription with the same name as the given [topic], it will
   /// return either an old timestamp, or null.
-  int? getLastTimestampByTopic(NT4Topic topic) {
+  DateTime? getLastTimestampByTopic(NT4Topic topic) {
     return getLastTimestampByName(topic.name);
   }
 
@@ -305,8 +305,12 @@ class NT4Client {
   /// This is only the value of the last timestamp that the client has received from the server, so
   /// if there is no subscription with the same name as the given [topic], it will
   /// return either an old timestamp, or null.
-  int? getLastTimestampByName(String topic) {
-    return _lastAnnouncedTimestamps[topic];
+  DateTime? getLastTimestampByName(String topic) {
+    if (!_lastAnnouncedTimestamps.containsKey(topic)) {
+      return null;
+    }
+    return DateTime.fromMicrosecondsSinceEpoch(
+        _lastAnnouncedTimestamps[topic]!);
   }
 
   /// Get an already announced topic with a given name, [topic]
@@ -758,16 +762,25 @@ class NT4Subscription {
     }
   }
 
-  Stream<({Object? value, int timestamp})> timestampedStream(
+  Stream<({Object? value, DateTime timestamp})> timestampedStream(
       {bool yieldAll = false}) async* {
-    yield (value: currentValue, timestamp: timestamp);
-    var lastYielded = (value: currentValue, timestamp: timestamp);
+    yield (
+      value: currentValue,
+      timestamp: DateTime.fromMicrosecondsSinceEpoch(timestamp),
+    );
+    var lastYielded = (
+      value: currentValue,
+      timestamp: DateTime.fromMicrosecondsSinceEpoch(timestamp),
+    );
 
     while (true) {
       await Future.delayed(
           Duration(milliseconds: (options.periodicRateSeconds * 1000).round()));
 
-      var current = (value: currentValue, timestamp: timestamp);
+      var current = (
+        value: currentValue,
+        timestamp: DateTime.fromMicrosecondsSinceEpoch(timestamp),
+      );
       if (current != lastYielded || yieldAll) {
         yield current;
         lastYielded = current;
