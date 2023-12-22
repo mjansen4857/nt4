@@ -26,8 +26,11 @@ class NT4Client {
   final Map<String, NT4Topic> _clientPublishedTopics = {};
   final Map<int, NT4Topic> _announcedTopics = {};
   final Map<String, Object?> _lastAnnouncedValues = {};
+  final Map<String, int> _lastAnnouncedTimestamps = {};
+
   int _clientId = 0;
   int _serverTimeOffsetUS = 0;
+  int _latencyMs = 0;
 
   bool _serverConnectionActive = false;
   bool _rttConnectionActive = false;
@@ -83,6 +86,20 @@ class NT4Client {
     }
   }
 
+  /// Creates a stream of the latency in milliseconds from the program to the NT4 server
+  Stream<int> latencyStream() async* {
+    yield _latencyMs;
+    int lastYielded = _latencyMs;
+
+    while (true) {
+      await Future.delayed(Duration(seconds: 1));
+      if (_latencyMs != lastYielded) {
+        yield _latencyMs;
+        lastYielded = _latencyMs;
+      }
+    }
+  }
+
   /// Subscribe to a topic with the name [topic] and a period of [period]
   ///
   /// [topic] should be the full path to the topic you wish to subscribe to
@@ -111,6 +128,9 @@ class NT4Client {
     if (_lastAnnouncedValues.containsKey(topic)) {
       newSub._updateValue(_lastAnnouncedValues[topic]);
     }
+    if (_lastAnnouncedTimestamps.containsKey(topic)) {
+      newSub._updateTimestamp(_lastAnnouncedTimestamps[topic]!);
+    }
 
     _subscriptions[newSub.uid] = newSub;
     _wsSubscribe(newSub);
@@ -132,6 +152,9 @@ class NT4Client {
 
     if (_lastAnnouncedValues.containsKey(topic)) {
       newSub._updateValue(_lastAnnouncedValues[topic]);
+    }
+    if (_lastAnnouncedTimestamps.containsKey(topic)) {
+      newSub._updateTimestamp(_lastAnnouncedTimestamps[topic]!);
     }
 
     _subscriptions[newSub.uid] = newSub;
@@ -235,6 +258,7 @@ class NT4Client {
     timestamp ??= _getServerTimeUS();
 
     _lastAnnouncedValues[topic.name] = data;
+    _lastAnnouncedTimestamps[topic.name] = timestamp;
 
     _wsSendBinary(
         serialize([topic.pubUID, timestamp, topic.getTypeId(), data]));
@@ -282,6 +306,28 @@ class NT4Client {
     return null;
   }
 
+  /// Returns the timestamp of the last sample of data the client receieved for the given [topic].
+  ///
+  /// This is only the value of the last timestamp that the client has received from the server, so
+  /// if there is no subscription with the same name as the given [topic], it will
+  /// return either an old timestamp, or null.
+  DateTime? getLastTimestampByTopic(NT4Topic topic) {
+    return getLastTimestampByName(topic.name);
+  }
+
+  /// Returns the timestamp of the last sample of data the client receieved for the given [topic].
+  ///
+  /// This is only the value of the last timestamp that the client has received from the server, so
+  /// if there is no subscription with the same name as the given [topic], it will
+  /// return either an old timestamp, or null.
+  DateTime? getLastTimestampByName(String topic) {
+    if (!_lastAnnouncedTimestamps.containsKey(topic)) {
+      return null;
+    }
+    return DateTime.fromMicrosecondsSinceEpoch(
+        _lastAnnouncedTimestamps[topic]!);
+  }
+
   /// Get an already announced topic with a given name, [topic]
   ///
   /// If there is not an announced topic with the name [topic], `null` will be returned
@@ -321,6 +367,7 @@ class NT4Client {
     _serverTimeOffsetUS = serverTimeAtRx - rxTime;
 
     _lastReceivedTime = rxTime;
+    _latencyMs = (rtt / 2) ~/ 1000;
   }
 
   void _checkPingStatus(Timer timer) {
@@ -414,6 +461,7 @@ class NT4Client {
       (data) {
         if (!_serverConnectionActive) {
           _lastAnnouncedValues.clear();
+          _lastAnnouncedTimestamps.clear();
 
           _serverConnectionActive = true;
           onConnect?.call();
@@ -433,6 +481,7 @@ class NT4Client {
     _announcedTopics[timeTopic.id] = timeTopic;
 
     _lastReceivedTime = 0;
+    _latencyMs = 0;
     _wsSendTimestamp();
 
     _pingTimer = Timer.periodic(Duration(milliseconds: _pingInterval), (timer) {
@@ -503,6 +552,7 @@ class NT4Client {
     _rttWebsocket = null;
 
     _lastReceivedTime = 0;
+    _latencyMs = 0;
     _rttConnectionActive = false;
     _useRTT = false;
   }
@@ -519,6 +569,7 @@ class NT4Client {
     _useRTT = false;
 
     _lastReceivedTime = 0;
+    _latencyMs = 0;
 
     onDisconnect?.call();
 
@@ -604,6 +655,7 @@ class NT4Client {
           if (topicID >= 0) {
             NT4Topic topic = _announcedTopics[topicID]!;
             _lastAnnouncedValues[topic.name] = value;
+            _lastAnnouncedTimestamps[topic.name] = timestampUS;
             for (NT4Subscription sub in _subscriptions.values) {
               if (sub.topic == topic.name) {
                 sub._updateValue(value);
@@ -701,6 +753,8 @@ class NT4Subscription {
   final int uid;
 
   Object? currentValue;
+  int timestamp = 0;
+
   final List<Function(Object?)> _listeners = [];
 
   NT4Subscription({
@@ -713,16 +767,42 @@ class NT4Subscription {
     _listeners.add(onChanged);
   }
 
-  Stream<Object?> stream() async* {
+  Stream<Object?> stream({bool yieldAll = false}) async* {
     yield currentValue;
     var lastYielded = currentValue;
 
     while (true) {
       await Future.delayed(
           Duration(milliseconds: (options.periodicRateSeconds * 1000).round()));
-      if (currentValue != lastYielded) {
+      if (currentValue != lastYielded || yieldAll) {
         yield currentValue;
         lastYielded = currentValue;
+      }
+    }
+  }
+
+  Stream<({Object? value, DateTime timestamp})> timestampedStream(
+      {bool yieldAll = false}) async* {
+    yield (
+      value: currentValue,
+      timestamp: DateTime.fromMicrosecondsSinceEpoch(timestamp),
+    );
+    var lastYielded = (
+      value: currentValue,
+      timestamp: DateTime.fromMicrosecondsSinceEpoch(timestamp),
+    );
+
+    while (true) {
+      await Future.delayed(
+          Duration(milliseconds: (options.periodicRateSeconds * 1000).round()));
+
+      var current = (
+        value: currentValue,
+        timestamp: DateTime.fromMicrosecondsSinceEpoch(timestamp),
+      );
+      if (current != lastYielded || yieldAll) {
+        yield current;
+        lastYielded = current;
       }
     }
   }
@@ -732,6 +812,10 @@ class NT4Subscription {
     for (var listener in _listeners) {
       listener(currentValue);
     }
+  }
+
+  void _updateTimestamp(int timestamp) {
+    this.timestamp = timestamp;
   }
 
   Map<String, dynamic> _toSubscribeJson() {
