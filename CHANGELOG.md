@@ -1,3 +1,11 @@
+## 1.3.0
+
+- Added ability to retrieve cached values
+- Added a method to temporarily subscribe to a topic and receive the first announced value
+- Topic properties will be updated if method is received from web socket
+- If supported, will use the nt 4.1 RTT protocol to check connection status
+- Added the ability to get a timestamped stream from a subscription
+- 
 ## 1.2.0
 
 - Add method to subscribe with custom options
