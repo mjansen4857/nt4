@@ -1,3 +1,8 @@
+## 1.3.2
+
+- Fix crash on reconnecting to server
+- Ignore rtt protocol topic ID
+
 ## 1.3.1
 
 - Fix connections being timed out too quickly
