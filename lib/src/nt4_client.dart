@@ -452,7 +452,7 @@ class NT4Client {
       _useRTT = true;
       _pingInterval = _pingIntervalMsV41;
       _timeoutInterval = _pingTimeoutMsV41;
-      _rttConnect();
+      await _rttConnect();
     } else {
       _useRTT = false;
       _pingInterval = _pingIntervalMsV40;
@@ -503,7 +503,7 @@ class NT4Client {
     }
   }
 
-  void _rttConnect() async {
+  Future<void> _rttConnect() async {
     if (!_useRTT || _rttConnectionActive) {
       return;
     }
