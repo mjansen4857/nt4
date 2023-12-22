@@ -30,6 +30,7 @@ class NT4Client {
 
   int _clientId = 0;
   int _serverTimeOffsetUS = 0;
+  int _latencyMs = 0;
 
   bool _serverConnectionActive = false;
   bool _rttConnectionActive = false;
@@ -81,6 +82,20 @@ class NT4Client {
       if (_serverConnectionActive != lastYielded) {
         yield _serverConnectionActive;
         lastYielded = _serverConnectionActive;
+      }
+    }
+  }
+
+  /// Creates a stream of the latency in milliseconds from the program to the NT4 server
+  Stream<int> latencyStream() async* {
+    yield _latencyMs;
+    int lastYielded = _latencyMs;
+
+    while (true) {
+      await Future.delayed(Duration(seconds: 1));
+      if (_latencyMs != lastYielded) {
+        yield _latencyMs;
+        lastYielded = _latencyMs;
       }
     }
   }
@@ -352,6 +367,7 @@ class NT4Client {
     _serverTimeOffsetUS = serverTimeAtRx - rxTime;
 
     _lastReceivedTime = rxTime;
+    _latencyMs = (rtt / 2) ~/ 1000;
   }
 
   void _checkPingStatus(Timer timer) {
@@ -465,6 +481,7 @@ class NT4Client {
     _announcedTopics[timeTopic.id] = timeTopic;
 
     _lastReceivedTime = 0;
+    _latencyMs = 0;
     _wsSendTimestamp();
 
     _pingTimer = Timer.periodic(Duration(milliseconds: _pingInterval), (timer) {
@@ -535,6 +552,7 @@ class NT4Client {
     _rttWebsocket = null;
 
     _lastReceivedTime = 0;
+    _latencyMs = 0;
     _rttConnectionActive = false;
     _useRTT = false;
   }
@@ -551,6 +569,7 @@ class NT4Client {
     _useRTT = false;
 
     _lastReceivedTime = 0;
+    _latencyMs = 0;
 
     onDisconnect?.call();
 
