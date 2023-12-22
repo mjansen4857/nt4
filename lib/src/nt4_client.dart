@@ -377,7 +377,7 @@ class NT4Client {
 
     int currentTime = _getClientTimeUS();
 
-    if (currentTime - _lastReceivedTime > _timeoutInterval) {
+    if (currentTime - _lastReceivedTime > _timeoutInterval * 1000) {
       _wsOnClose();
     }
   }
