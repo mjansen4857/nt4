@@ -1,3 +1,7 @@
+## 1.3.1
+
+- Fix connections being timed out too quickly
+
 ## 1.3.0
 
 - Added ability to retrieve cached values
