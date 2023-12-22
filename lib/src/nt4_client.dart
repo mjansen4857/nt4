@@ -1,10 +1,11 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'dart:typed_data';
 
 import 'package:collection/collection.dart';
 import 'package:messagepack/messagepack.dart';
-import 'package:msgpack_dart/msgpack_dart.dart';
+import 'package:msgpack_dart/msgpack_dart.dart' as mp;
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 class NT4Client {
@@ -263,7 +264,7 @@ class NT4Client {
     _lastAnnouncedTimestamps[topic.name] = timestamp;
 
     _wsSendBinary(
-        serialize([topic.pubUID, timestamp, topic.getTypeId(), data]));
+        mp.serialize([topic.pubUID, timestamp, topic.getTypeId(), data]));
   }
 
   /// Add a sample of data for a topic with a given name, [topic]
@@ -350,8 +351,8 @@ class NT4Client {
     if (timeTopic != null) {
       int timeToSend = _getClientTimeUS();
 
-      var rawData =
-          serialize([timeTopic.pubUID, 0, timeTopic.getTypeId(), timeToSend]);
+      var rawData = mp
+          .serialize([timeTopic.pubUID, 0, timeTopic.getTypeId(), timeToSend]);
 
       if (_useRTT) {
         _rttWebsocket?.sink.add(rawData);
@@ -528,11 +529,15 @@ class NT4Client {
 
     _rttWebsocketSub = _rttWebsocket!.stream.listen(
       (data) {
-        if (data is! List<int>) {
+        if (data is! Uint8List) {
           return;
         }
 
-        var msg = Unpacker.fromList(data).unpackList();
+        var msg = mp.deserialize(data);
+
+        if (msg is! List) {
+          return;
+        }
 
         // rtt socket will only send timestamps, we can ignore the topic ID
         int timestampUS = msg[1] as int;
