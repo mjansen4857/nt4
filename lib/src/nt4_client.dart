@@ -45,7 +45,9 @@ class NT4Client {
   int _timeoutInterval = _pingTimeoutMsV40;
 
   WebSocketChannel? _mainWebsocket;
+  StreamSubscription<dynamic>? _mainWebsocketSub;
   WebSocketChannel? _rttWebsocket;
+  StreamSubscription<dynamic>? _rttWebsocketSub;
 
   /// Create an NT4 client. This will connect to an NT4 server running at
   /// [serverBaseAddress]. This should be either 'localhost' if running a
@@ -457,7 +459,7 @@ class NT4Client {
       _timeoutInterval = _pingTimeoutMsV40;
     }
 
-    _mainWebsocket!.stream.listen(
+    _mainWebsocketSub = _mainWebsocket!.stream.listen(
       (data) {
         if (!_serverConnectionActive) {
           _lastAnnouncedValues.clear();
@@ -470,10 +472,11 @@ class NT4Client {
       },
       onDone: _wsOnClose,
       onError: (err) {},
+      cancelOnError: true,
     );
 
     NT4Topic timeTopic = NT4Topic(
-        name: "Time",
+        name: 'Time',
         type: NT4TypeStr.typeInt,
         id: -1,
         pubUID: -1,
@@ -523,7 +526,7 @@ class NT4Client {
 
     _rttConnectionActive = true;
 
-    _rttWebsocket!.stream.listen(
+    _rttWebsocketSub = _rttWebsocket!.stream.listen(
       (data) {
         if (data is! List<int>) {
           return;
@@ -544,11 +547,15 @@ class NT4Client {
         }
       },
       onDone: _rttOnClose,
+      onError: (error) {},
+      cancelOnError: true,
     );
   }
 
-  void _rttOnClose() {
-    _rttWebsocket?.sink.close();
+  void _rttOnClose() async {
+    await _rttWebsocketSub?.cancel();
+    _rttWebsocketSub = null;
+    await _rttWebsocket?.sink.close();
     _rttWebsocket = null;
 
     _lastReceivedTime = 0;
@@ -557,9 +564,16 @@ class NT4Client {
     _useRTT = false;
   }
 
-  void _wsOnClose() {
-    _mainWebsocket?.sink.close();
-    _rttWebsocket?.sink.close();
+  void _wsOnClose() async {
+    _pingTimer?.cancel();
+    _pongTimer?.cancel();
+
+    await _mainWebsocketSub?.cancel();
+    _mainWebsocketSub = null;
+    await _mainWebsocket?.sink.close();
+    await _rttWebsocketSub?.cancel();
+    _rttWebsocketSub = null;
+    await _rttWebsocket?.sink.close();
 
     _mainWebsocket = null;
     _rttWebsocket = null;
