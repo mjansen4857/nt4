@@ -1,3 +1,7 @@
+## 1.3.3
+
+- Update connection status on rtt message. Client will no be able to report if connected without subscribing to topics
+
 ## 1.3.2
 
 - Fix crash on reconnecting to server
