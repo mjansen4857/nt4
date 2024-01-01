@@ -529,6 +529,14 @@ class NT4Client {
 
     _rttWebsocketSub = _rttWebsocket!.stream.listen(
       (data) {
+        if (!_serverConnectionActive) {
+          _lastAnnouncedValues.clear();
+          _lastAnnouncedTimestamps.clear();
+
+          _serverConnectionActive = true;
+          onConnect?.call();
+        }
+
         if (data is! Uint8List) {
           return;
         }
