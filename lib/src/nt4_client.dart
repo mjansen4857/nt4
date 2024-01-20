@@ -15,6 +15,7 @@ class NT4Client {
   static const int _pingTimeoutMsV40 = 5000;
   static const int _pingTimeoutMsV41 = 1000;
 
+  String? _clientName;
   String serverBaseAddress;
   final void Function()? onConnect;
   final void Function()? onDisconnect;
@@ -61,7 +62,10 @@ class NT4Client {
     required this.serverBaseAddress,
     this.onConnect,
     this.onDisconnect,
-  }) {
+    String? clientName,
+  }) : _clientName = clientName {
+    _clientId = Random().nextInt(99999999);
+    _clientName ??= 'DartClient_$_clientId';
     _wsConnect();
   }
 
@@ -423,9 +427,7 @@ class NT4Client {
       return;
     }
 
-    _clientId = Random().nextInt(99999999);
-
-    String serverAddr = 'ws://$serverBaseAddress:5810/nt/DartClient_$_clientId';
+    String serverAddr = 'ws://$serverBaseAddress:5810/nt/$_clientName';
 
     _mainWebsocket =
         WebSocketChannel.connect(Uri.parse(serverAddr), protocols: [
