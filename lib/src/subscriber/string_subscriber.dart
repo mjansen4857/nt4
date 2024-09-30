@@ -1,5 +1,8 @@
 import 'package:nt4/src/subscriber/subscriber.dart';
+import 'package:nt4/src/timestamped_value.dart';
 import 'package:nt4/src/topic/string_topic.dart';
+
+typedef TimestampedString = TimestampedValue<String>;
 
 abstract class StringSubscriber extends Subscriber {
   @override
@@ -7,9 +10,9 @@ abstract class StringSubscriber extends Subscriber {
 
   String get([String? defaultValue]);
 
-  (DateTime timestamp, String value)? getAtomic([String? defaultValue]);
+  TimestampedString? getAtomic([String? defaultValue]);
 
-  List<(DateTime timestamp, String value)> readQueue();
+  List<TimestampedString> readQueue();
 
   List<String> readQueueValues();
 }

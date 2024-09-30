@@ -1,5 +1,8 @@
 import 'package:nt4/src/subscriber/subscriber.dart';
+import 'package:nt4/src/timestamped_value.dart';
 import 'package:nt4/src/topic/bool_array_topic.dart';
+
+typedef TimestampedBooleanArray = TimestampedValue<List<bool>>;
 
 abstract class BoolArraySubscriber extends Subscriber {
   @override
@@ -7,9 +10,9 @@ abstract class BoolArraySubscriber extends Subscriber {
 
   List<bool> get([List<bool>? defaultValue]);
 
-  (DateTime timestamp, List<bool> value)? getAtomic([List<bool>? defaultValue]);
+  TimestampedBooleanArray? getAtomic([List<bool>? defaultValue]);
 
-  List<(DateTime timestamp, List<bool> value)> readQueue();
+  List<TimestampedBooleanArray> readQueue();
 
   List<List<bool>> readQueueValues();
 }

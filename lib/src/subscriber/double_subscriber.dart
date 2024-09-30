@@ -1,5 +1,8 @@
 import 'package:nt4/src/subscriber/subscriber.dart';
+import 'package:nt4/src/timestamped_value.dart';
 import 'package:nt4/src/topic/double_topic.dart';
+
+typedef TimestampedDouble = TimestampedValue<double>;
 
 abstract class DoubleSubscriber extends Subscriber {
   @override
@@ -7,9 +10,9 @@ abstract class DoubleSubscriber extends Subscriber {
 
   double get([double? defaultValue]);
 
-  (DateTime timestamp, double value)? getAtomic([double? defaultValue]);
+  TimestampedDouble? getAtomic([double? defaultValue]);
 
-  List<(DateTime timestamp, double value)> readQueue();
+  List<TimestampedDouble> readQueue();
 
   List<double> readQueueValues();
 }
