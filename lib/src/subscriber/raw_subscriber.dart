@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:nt4/src/subscriber/subscriber.dart';
-import 'package:nt4/src/timestamped_value.dart';
 import 'package:nt4/src/topic/raw_topic.dart';
 
 typedef TimestampedRaw = TimestampedValue<Uint8List>;

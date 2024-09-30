@@ -5,58 +5,59 @@ import 'package:nt4/src/network_table_type.dart';
 import 'package:nt4/src/topic/topic_info.dart';
 
 class Topic {
-  final NetworkTableInstance instance;
-  final TopicInfo info;
-  final Map<String, dynamic> properties = {};
+  final NetworkTableInstance _instance;
+  final TopicInfo _info;
+  final Map<String, dynamic> _properties = {};
 
-  Topic(this.instance, this.info);
+  Topic(this._instance, this._info);
 
-  int get handle => info.handle;
+  int get handle => _info.handle;
 
-  String get name => info.name;
+  String get name => _info.name;
 
   bool get isValid => handle != 0;
 
-  NetworkTableType get type => info.type;
+  NetworkTableType get type => _info.type;
 
   String get typeString => type.valueStr;
 
   void setPersistent(bool persistent) {
-    properties['persistent'] = persistent;
+    _properties['persistent'] = persistent;
+    _instance.setProperties(this);
   }
 
-  bool get isPersistent => properties['persistent'] ?? false;
+  bool get isPersistent => _properties['persistent'] ?? false;
 
   void setRetained(bool retained) {
-    properties['retained'] = retained;
+    _properties['retained'] = retained;
+    _instance.setProperties(this);
   }
 
-  bool get isRetained => properties['retained'] ?? false;
+  bool get isRetained => _properties['retained'] ?? false;
 
   void setCached(bool cached) {
-    // TODO
+    _properties['cached'] = cached;
+    _instance.setProperties(this);
   }
 
-  bool get iscached => false; // TODO
+  bool get iscached => _properties['cached'] ?? false;
 
-  String getProperties() {
-    return jsonEncode(properties);
+  String getPropertiesJson() {
+    return jsonEncode(_properties);
   }
 
-  void setProperties(String propertiesStr) {
-    Map<String, dynamic> props = jsonDecode(propertiesStr);
+  void setProperties(String propertiesJson) {
+    Map<String, dynamic> props = jsonDecode(propertiesJson);
 
-    properties.clear();
-    for (String key in props.keys) {
-      props[key] = props[key];
-    }
+    _properties.clear();
+    _properties.addAll(props);
   }
 
   @override
   bool operator ==(Object other) {
     return other is Topic &&
         other.runtimeType == runtimeType &&
-        info.handle == other.handle;
+        _info.handle == other.handle;
   }
 
   @override

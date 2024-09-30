@@ -1,5 +1,4 @@
 import 'package:nt4/src/subscriber/subscriber.dart';
-import 'package:nt4/src/timestamped_value.dart';
 import 'package:nt4/src/topic/string_array_topic.dart';
 
 typedef TimestampedStringArray = TimestampedValue<List<String>>;
