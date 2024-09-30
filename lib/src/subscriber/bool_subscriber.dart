@@ -1,7 +1,7 @@
 import 'package:nt4/src/subscriber/subscriber.dart';
 import 'package:nt4/src/topic/bool_topic.dart';
 
-typedef TimestampedBoolean = TimestampedValue<bool>;
+typedef TimestampedBool = TimestampedValue<bool>;
 
 abstract class BoolSubscriber extends Subscriber {
   @override
@@ -9,9 +9,9 @@ abstract class BoolSubscriber extends Subscriber {
 
   bool get([bool? defaultValue]);
 
-  TimestampedBoolean? getAtomic([bool? defaultValue]);
+  TimestampedBool? getAtomic([bool? defaultValue]);
 
-  List<TimestampedBoolean> readQueue();
+  List<TimestampedBool> readQueue();
 
   List<bool> readQueueValues();
 }
